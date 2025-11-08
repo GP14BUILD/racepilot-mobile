@@ -13,18 +13,54 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.racepilot.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "RacePilot needs your location to track your sailing sessions and provide real-time navigation data.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "RacePilot needs background location access to continue tracking your sailing sessions when the app is in the background.",
+        "NSLocationAlwaysUsageDescription": "RacePilot needs background location access to continue tracking your sailing sessions.",
+        "NSBluetoothAlwaysUsageDescription": "RacePilot needs Bluetooth access to connect to your wind sensor and other marine instruments.",
+        "NSBluetoothPeripheralUsageDescription": "RacePilot needs Bluetooth access to connect to your wind sensor.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      }
     },
     "android": {
+      "package": "com.racepilot.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow RacePilot to use your location to track sailing sessions.",
+          "locationAlwaysPermission": "Allow RacePilot to use your location in the background.",
+          "locationWhenInUsePermission": "Allow RacePilot to use your location while using the app."
+        }
+      ]
+    ]
   }
 }
