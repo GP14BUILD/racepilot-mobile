@@ -46,7 +46,12 @@
         "BLUETOOTH_CONNECT",
         "BLUETOOTH_SCAN",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
       ]
     },
     "web": {
@@ -60,7 +65,23 @@
           "locationAlwaysPermission": "Allow RacePilot to use your location in the background.",
           "locationWhenInUsePermission": "Allow RacePilot to use your location while using the app."
         }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": [
+            "peripheral",
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Allow RacePilot to connect to your wind sensor and marine instruments."
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ff6d5f8a-3a84-4448-a19d-79daecfde1fd"
+      }
+    }
   }
 }

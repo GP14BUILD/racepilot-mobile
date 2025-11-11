@@ -46,14 +46,14 @@ racepilot-mobile/
 
 1. Launch **Android Studio**
 2. Click **"Open"** or **"Open an Existing Project"**
-3. Navigate to: `c:\Users\donne\Documents\racepilot\racepilot-mobile\android`
+3. Navigate to: `c:\racepilot\racepilot-mobile\android`
 4. Click **"OK"**
 5. Wait for Gradle to sync (this may take a few minutes on first open)
 
 ### Method 2: From Terminal
 
 ```bash
-cd c:\Users\donne\Documents\racepilot\racepilot-mobile\android
+cd c:\racepilot\racepilot-mobile\android
 studio .
 ```
 
@@ -82,7 +82,7 @@ studio .
 
 1. **Start the Metro bundler** in a separate terminal:
    ```bash
-   cd c:\Users\donne\Documents\racepilot\racepilot-mobile
+   cd c:\racepilot\racepilot-mobile
    npx expo start
    ```
 
@@ -104,7 +104,7 @@ studio .
 
 4. **Start Metro bundler**:
    ```bash
-   cd c:\Users\donne\Documents\racepilot\racepilot-mobile
+   cd c:\racepilot\racepilot-mobile
    npx expo start
    ```
 
@@ -117,7 +117,7 @@ studio .
 If you prefer the command line, you can use:
 
 ```bash
-cd c:\Users\donne\Documents\racepilot\racepilot-mobile
+cd c:\racepilot\racepilot-mobile
 
 # Start Metro bundler in background
 npx expo start &
