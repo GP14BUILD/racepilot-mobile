@@ -10,10 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from './AuthContext';
 
 export default function LoginScreen() {
@@ -61,185 +59,171 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardView}
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Header */}
-              <View style={styles.header}>
-                <View style={styles.logoContainer}>
-                  <Text style={styles.logoEmoji}>⛵</Text>
-                  <Text style={styles.logo}>RacePilot</Text>
-                </View>
-                <Text style={styles.subtitle}>
-                  {isLogin ? 'Welcome back, sailor!' : 'Join the fleet'}
-                </Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <Text style={styles.logoEmoji}>⛵</Text>
+                <Text style={styles.logo}>RacePilot</Text>
               </View>
+              <Text style={styles.subtitle}>
+                {isLogin ? 'Welcome back, sailor!' : 'Join the fleet'}
+              </Text>
+            </View>
 
-              {/* Form Card */}
-              <View style={styles.card}>
-                <View style={styles.form}>
-                  {!isLogin && (
+            {/* Form Card */}
+            <View style={styles.card}>
+              <View style={styles.form}>
+                {!isLogin && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Name</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        focusedInput === 'name' && styles.inputFocused,
+                      ]}
+                      value={name}
+                      onChangeText={setName}
+                      onFocus={() => setFocusedInput('name')}
+                      onBlur={() => setFocusedInput(null)}
+                      placeholder="Your name"
+                      placeholderTextColor="#94a3b8"
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedInput === 'email' && styles.inputFocused,
+                    ]}
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setFocusedInput('email')}
+                    onBlur={() => setFocusedInput(null)}
+                    placeholder="you@example.com"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedInput === 'password' && styles.inputFocused,
+                    ]}
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setFocusedInput('password')}
+                    onBlur={() => setFocusedInput(null)}
+                    placeholder="At least 8 characters"
+                    placeholderTextColor="#94a3b8"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+
+                {!isLogin && (
+                  <>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Name</Text>
+                      <Text style={styles.label}>Club Code</Text>
                       <TextInput
                         style={[
                           styles.input,
-                          focusedInput === 'name' && styles.inputFocused,
+                          focusedInput === 'clubCode' && styles.inputFocused,
                         ]}
-                        value={name}
-                        onChangeText={setName}
-                        onFocus={() => setFocusedInput('name')}
+                        value={clubCode}
+                        onChangeText={(text) => setClubCode(text.toUpperCase())}
+                        onFocus={() => setFocusedInput('clubCode')}
                         onBlur={() => setFocusedInput(null)}
-                        placeholder="Your name"
+                        placeholder="e.g., BRYC"
                         placeholderTextColor="#94a3b8"
-                        autoCapitalize="words"
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                      />
+                      <Text style={styles.hint}>
+                        Ask your club admin for the club code
+                      </Text>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Sail Number (Optional)</Text>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          focusedInput === 'sailNumber' && styles.inputFocused,
+                        ]}
+                        value={sailNumber}
+                        onChangeText={setSailNumber}
+                        onFocus={() => setFocusedInput('sailNumber')}
+                        onBlur={() => setFocusedInput(null)}
+                        placeholder="e.g., 12345"
+                        placeholderTextColor="#94a3b8"
+                        autoCapitalize="none"
                         autoCorrect={false}
                       />
                     </View>
-                  )}
+                  </>
+                )}
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Email</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        focusedInput === 'email' && styles.inputFocused,
-                      ]}
-                      value={email}
-                      onChangeText={setEmail}
-                      onFocus={() => setFocusedInput('email')}
-                      onBlur={() => setFocusedInput(null)}
-                      placeholder="you@example.com"
-                      placeholderTextColor="#94a3b8"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Password</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        focusedInput === 'password' && styles.inputFocused,
-                      ]}
-                      value={password}
-                      onChangeText={setPassword}
-                      onFocus={() => setFocusedInput('password')}
-                      onBlur={() => setFocusedInput(null)}
-                      placeholder="At least 8 characters"
-                      placeholderTextColor="#94a3b8"
-                      secureTextEntry
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-
-                  {!isLogin && (
-                    <>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Club Code</Text>
-                        <TextInput
-                          style={[
-                            styles.input,
-                            focusedInput === 'clubCode' && styles.inputFocused,
-                          ]}
-                          value={clubCode}
-                          onChangeText={(text) => setClubCode(text.toUpperCase())}
-                          onFocus={() => setFocusedInput('clubCode')}
-                          onBlur={() => setFocusedInput(null)}
-                          placeholder="e.g., BRYC"
-                          placeholderTextColor="#94a3b8"
-                          autoCapitalize="characters"
-                          autoCorrect={false}
-                        />
-                        <Text style={styles.hint}>
-                          Ask your club admin for the club code
-                        </Text>
-                      </View>
-
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Sail Number (Optional)</Text>
-                        <TextInput
-                          style={[
-                            styles.input,
-                            focusedInput === 'sailNumber' && styles.inputFocused,
-                          ]}
-                          value={sailNumber}
-                          onChangeText={setSailNumber}
-                          onFocus={() => setFocusedInput('sailNumber')}
-                          onBlur={() => setFocusedInput(null)}
-                          placeholder="e.g., 12345"
-                          placeholderTextColor="#94a3b8"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                        />
-                      </View>
-                    </>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.button, loading && styles.buttonDisabled]}
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={['#3b82f6', '#2563eb']}
-                      style={styles.buttonGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      {loading ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text style={styles.buttonText}>
-                          {isLogin ? 'Sign In' : 'Create Account'}
-                        </Text>
-                      )}
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.switchButton}
-                    onPress={() => setIsLogin(!isLogin)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.switchText}>
-                      {isLogin
-                        ? "Don't have an account? "
-                        : 'Already have an account? '}
-                      <Text style={styles.switchTextBold}>
-                        {isLogin ? 'Sign up' : 'Sign in'}
-                      </Text>
+                <TouchableOpacity
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      {isLogin ? 'Sign In' : 'Create Account'}
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                  )}
+                </TouchableOpacity>
 
-              {/* Footer */}
-              <View style={styles.footer}>
-                <Text style={styles.footerText}>
-                  Professional race analysis at your fingertips
-                </Text>
+                <TouchableOpacity
+                  style={styles.switchButton}
+                  onPress={() => setIsLogin(!isLogin)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.switchText}>
+                    {isLogin
+                      ? "Don't have an account? "
+                      : 'Already have an account? '}
+                    <Text style={styles.switchTextBold}>
+                      {isLogin ? 'Sign up' : 'Sign in'}
+                    </Text>
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </LinearGradient>
+            </View>
+
+            {/* Footer */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Professional race analysis at your fingertips
+              </Text>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </View>
   );
 }
@@ -247,9 +231,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
+    backgroundColor: '#1e40af', // Solid blue background
   },
   safeArea: {
     flex: 1,
@@ -287,7 +269,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#fff',
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
@@ -335,18 +317,16 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   button: {
+    backgroundColor: '#3b82f6',
     borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
     marginTop: 8,
-    overflow: 'hidden',
     shadowColor: '#3b82f6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
-  },
-  buttonGradient: {
-    padding: 18,
-    alignItems: 'center',
   },
   buttonDisabled: {
     opacity: 0.6,
