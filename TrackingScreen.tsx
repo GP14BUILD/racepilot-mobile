@@ -704,7 +704,7 @@ export default function TrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1e40af', // Modern blue background
     padding: 20,
   },
   header: {
@@ -714,45 +714,49 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    fontWeight: '800',
+    color: '#fff', // White title on blue background
+    letterSpacing: -0.5,
   },
   section: {
     backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    padding: 20,
+    borderRadius: 16, // More rounded
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#1e293b', // Darker, more modern color
   },
   info: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
+    color: '#64748b', // Modern gray
+    marginBottom: 6,
+    lineHeight: 20,
   },
   deviceItem: {
-    padding: 10,
-    backgroundColor: '#e3f2fd',
-    borderRadius: 5,
+    padding: 14,
+    backgroundColor: '#dbeafe', // Light blue
+    borderRadius: 12,
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
   },
   deviceName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1976D2',
+    fontWeight: '700',
+    color: '#1e40af', // Match main blue
   },
   deviceId: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    color: '#64748b',
+    marginTop: 4,
   },
 });
