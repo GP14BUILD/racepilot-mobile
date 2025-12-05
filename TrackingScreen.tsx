@@ -16,6 +16,7 @@ import * as TaskManager from 'expo-task-manager';
 import { BleManager, Device } from 'react-native-ble-plx';
 import { TrackPoint, TelemetryIngest, SessionCreate, WindSensorData } from './types';
 import { GarminGPSService, GPSPosition } from './GarminGPSService';
+import { useAuth } from './AuthContext';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -23,6 +24,7 @@ const BATCH_SIZE = 10; // Send telemetry every 10 points
 const BATCH_INTERVAL = 5000; // Or every 5 seconds
 
 export default function TrackingScreen() {
+  const { token, user } = useAuth();
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [telemetryBuffer, setTelemetryBuffer] = useState<TrackPoint[]>([]);
@@ -107,8 +109,13 @@ export default function TrackingScreen() {
   // Start a new session
   const startSession = async () => {
     try {
+      if (!token || !user) {
+        Alert.alert('Error', 'You must be logged in to start a session');
+        return;
+      }
+
       const sessionData: SessionCreate = {
-        user_id: 1, // Default user for MVP
+        user_id: user.id,
         boat_id: 1, // Default boat for MVP
         title: `Session ${new Date().toLocaleString()}`,
         start_ts: new Date().toISOString(),
@@ -120,7 +127,10 @@ export default function TrackingScreen() {
 
       const response = await fetch(`${API_URL}/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(sessionData),
       });
 
@@ -291,8 +301,8 @@ export default function TrackingScreen() {
     const buffer = telemetryBufferRef.current;
     const currentSessionId = sessionIdRef.current;
 
-    if (buffer.length === 0 || !currentSessionId) {
-      console.log('Skip flush - buffer empty or no session:', { bufferSize: buffer.length, sessionId: currentSessionId });
+    if (buffer.length === 0 || !currentSessionId || !token) {
+      console.log('Skip flush - buffer empty or no session:', { bufferSize: buffer.length, sessionId: currentSessionId, hasToken: !!token });
       return;
     }
 
@@ -310,7 +320,10 @@ export default function TrackingScreen() {
 
       const response = await fetch(`${API_URL}/telemetry/ingest`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
 
@@ -551,19 +564,45 @@ export default function TrackingScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>RacePilot Mobile</Text>
+        <Text style={styles.title}>⛵ RacePilot</Text>
+        {user && <Text style={styles.subtitle}>Welcome back, {user.name}</Text>}
       </View>
 
       {/* Session Control */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Session</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Active Session</Text>
+          {isTracking && (
+            <View style={styles.statusBadge}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.statusText}>Recording</Text>
+            </View>
+          )}
+        </View>
+
         {!isTracking ? (
-          <Button title="Start Session" onPress={startSession} color="#4CAF50" />
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={startSession}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonText}>▶ Start New Session</Text>
+          </TouchableOpacity>
         ) : (
           <View>
-            <Text style={styles.info}>Session ID: {sessionId}</Text>
-            <Button title="Stop Session" onPress={stopSession} color="#F44336" />
+            <View style={styles.sessionInfoCard}>
+              <Text style={styles.sessionLabel}>Session ID</Text>
+              <Text style={styles.sessionValue}>#{sessionId}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.dangerButton}
+              onPress={stopSession}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.dangerButtonText}>⬛ Stop Session</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -571,131 +610,218 @@ export default function TrackingScreen() {
       {/* Telemetry Stats */}
       {isTracking && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Telemetry Stats</Text>
-          <Text style={styles.info}>Points Sent: {stats.pointsSent}</Text>
-          <Text style={styles.info}>Batches Sent: {stats.batchesSent}</Text>
-          <Text style={styles.info}>Buffer: {telemetryBuffer.length} points</Text>
+          <Text style={styles.sectionTitle}>Live Telemetry</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{stats.pointsSent}</Text>
+              <Text style={styles.statLabel}>Points Sent</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{stats.batchesSent}</Text>
+              <Text style={styles.statLabel}>Batches</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{telemetryBuffer.length}</Text>
+              <Text style={styles.statLabel}>Buffered</Text>
+            </View>
+          </View>
         </View>
       )}
 
       {/* GPS Status */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>GPS</Text>
+        <Text style={styles.sectionTitle}>📍 GPS</Text>
 
         {/* GPS Source Indicator */}
-        <View style={{flexDirection: 'row', marginBottom: 10, backgroundColor: useExternalGPS ? '#E8F5E9' : '#E3F2FD', padding: 8, borderRadius: 5}}>
-          <Text style={{fontWeight: 'bold', color: useExternalGPS ? '#2E7D32' : '#1976D2'}}>
-            Source: {useExternalGPS ? '📡 Garmin Glo 2' : '📱 Phone GPS'}
+        <View style={[styles.sourceIndicator, useExternalGPS ? styles.externalGPS : styles.phoneGPS]}>
+          <Text style={[styles.sourceText, useExternalGPS ? styles.externalGPSText : styles.phoneGPSText]}>
+            {useExternalGPS ? '📡 Garmin Glo 2' : '📱 Phone GPS'}
           </Text>
         </View>
 
         {/* Garmin GPS Connection */}
         {!bleManager ? (
-          <Text style={styles.info}>Bluetooth requires native build for external GPS</Text>
+          <Text style={styles.warningText}>⚠️ Build APK to enable external GPS</Text>
         ) : !garminDevice ? (
           <View>
-            <Button
-              title={isScanning ? 'Scanning...' : 'Scan for Garmin Glo 2'}
+            <TouchableOpacity
+              style={[styles.secondaryButton, isScanning && styles.disabledButton]}
               onPress={scanForDevices}
               disabled={isScanning}
-              color="#4CAF50"
-            />
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {isScanning ? '🔄 Scanning...' : '🔍 Scan for Garmin Glo 2'}
+              </Text>
+            </TouchableOpacity>
             {gpsDevices.map(device => (
               <TouchableOpacity
                 key={device.id}
-                style={styles.deviceItem}
+                style={styles.deviceCard}
                 onPress={() => connectToGarminGPS(device)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.deviceName}>📡 {device.name || 'Unknown'}</Text>
-                <Text style={styles.deviceId}>{device.id}</Text>
+                <Text style={styles.deviceName}>📡 {device.name || 'Unknown Device'}</Text>
+                <Text style={styles.deviceId}>{device.id.substring(0, 20)}...</Text>
               </TouchableOpacity>
             ))}
           </View>
         ) : (
           <View>
-            <Text style={styles.info}>✓ Connected: {garminDevice.name}</Text>
-            {garminPosition && (
-              <View>
-                <Text style={styles.info}>Quality: GPS Fix ({garminPosition.satellites} satellites)</Text>
-                {garminPosition.hdop && <Text style={styles.info}>HDOP: {garminPosition.hdop.toFixed(1)}</Text>}
-              </View>
-            )}
-            <Button title="Disconnect Garmin" onPress={disconnectGarminGPS} color="#FF9800" />
+            <View style={styles.connectedCard}>
+              <Text style={styles.connectedText}>✓ {garminDevice.name}</Text>
+              {garminPosition && (
+                <Text style={styles.satelliteText}>
+                  {garminPosition.satellites} satellites
+                  {garminPosition.hdop && ` • HDOP ${garminPosition.hdop.toFixed(1)}`}
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.warningButton}
+              onPress={disconnectGarminGPS}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.warningButtonText}>Disconnect</Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* GPS Data */}
-        <View style={{marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#ddd'}}>
+        <View style={styles.gpsDataCard}>
           {useExternalGPS && garminPosition ? (
-            <View>
-              <Text style={styles.info}>Lat: {garminPosition.latitude.toFixed(6)}</Text>
-              <Text style={styles.info}>Lon: {garminPosition.longitude.toFixed(6)}</Text>
-              <Text style={styles.info}>Speed: {garminPosition.speed.toFixed(1)} knots</Text>
-              <Text style={styles.info}>Heading: {garminPosition.heading.toFixed(1)}°</Text>
-              {garminPosition.altitude && <Text style={styles.info}>Altitude: {garminPosition.altitude.toFixed(1)}m</Text>}
+            <View style={styles.dataGrid}>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Latitude</Text>
+                <Text style={styles.dataValue}>{garminPosition.latitude.toFixed(6)}°</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Longitude</Text>
+                <Text style={styles.dataValue}>{garminPosition.longitude.toFixed(6)}°</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Speed</Text>
+                <Text style={styles.dataValue}>{garminPosition.speed.toFixed(1)} kts</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Heading</Text>
+                <Text style={styles.dataValue}>{garminPosition.heading.toFixed(1)}°</Text>
+              </View>
             </View>
           ) : location ? (
-            <View>
-              <Text style={styles.info}>Lat: {location.coords.latitude.toFixed(6)}</Text>
-              <Text style={styles.info}>Lon: {location.coords.longitude.toFixed(6)}</Text>
-              <Text style={styles.info}>Speed: {((location.coords.speed || 0) * 1.94384).toFixed(1)} knots</Text>
-              <Text style={styles.info}>Heading: {location.coords.heading?.toFixed(1) || 'N/A'}°</Text>
+            <View style={styles.dataGrid}>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Latitude</Text>
+                <Text style={styles.dataValue}>{location.coords.latitude.toFixed(6)}°</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Longitude</Text>
+                <Text style={styles.dataValue}>{location.coords.longitude.toFixed(6)}°</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Speed</Text>
+                <Text style={styles.dataValue}>{((location.coords.speed || 0) * 1.94384).toFixed(1)} kts</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Heading</Text>
+                <Text style={styles.dataValue}>{location.coords.heading?.toFixed(1) || 'N/A'}°</Text>
+              </View>
             </View>
           ) : (
-            <Text style={styles.info}>Waiting for GPS...</Text>
+            <Text style={styles.waitingText}>Acquiring GPS signal...</Text>
           )}
         </View>
       </View>
 
       {/* Bluetooth Wind Sensor */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Wind Sensor</Text>
+        <Text style={styles.sectionTitle}>💨 Wind Sensor</Text>
         {!bleManager ? (
-          <View>
-            <Text style={styles.info}>Bluetooth requires native build</Text>
-            <Text style={{...styles.info, fontSize: 12, marginTop: 5}}>
-              Run: eas build --profile development
-            </Text>
+          <View style={styles.warningCard}>
+            <Text style={styles.warningText}>⚠️ Bluetooth requires APK build</Text>
+            <Text style={styles.hintText}>Build APK to enable wind sensors</Text>
           </View>
         ) : !windDevice ? (
           <View>
-            <Button
-              title={isScanning ? 'Scanning...' : 'Scan for Wind Sensors'}
+            <TouchableOpacity
+              style={[styles.secondaryButton, isScanning && styles.disabledButton]}
               onPress={scanForDevices}
               disabled={isScanning}
-              color="#2196F3"
-            />
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {isScanning ? '🔄 Scanning...' : '🔍 Scan for Wind Sensors'}
+              </Text>
+            </TouchableOpacity>
             {windDevices.map(device => (
               <TouchableOpacity
                 key={device.id}
-                style={styles.deviceItem}
+                style={styles.deviceCard}
                 onPress={() => connectToWindSensor(device)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.deviceName}>💨 {device.name || 'Unknown'}</Text>
-                <Text style={styles.deviceId}>{device.id}</Text>
+                <Text style={styles.deviceName}>💨 {device.name || 'Unknown Device'}</Text>
+                <Text style={styles.deviceId}>{device.id.substring(0, 20)}...</Text>
               </TouchableOpacity>
             ))}
           </View>
         ) : (
           <View>
-            <Text style={styles.info}>✓ Connected: {windDevice.name}</Text>
+            <View style={styles.connectedCard}>
+              <Text style={styles.connectedText}>✓ {windDevice.name}</Text>
+            </View>
             {windData && (
-              <View>
-                <Text style={styles.info}>AWS: {windData.aws.toFixed(1)} knots</Text>
-                <Text style={styles.info}>AWA: {windData.awa.toFixed(1)}°</Text>
-                {windData.tws && <Text style={styles.info}>TWS: {windData.tws.toFixed(1)} knots</Text>}
-                {windData.twa && <Text style={styles.info}>TWA: {windData.twa.toFixed(1)}°</Text>}
+              <View style={styles.windDataCard}>
+                <View style={styles.windDataRow}>
+                  <View style={styles.windDataBox}>
+                    <Text style={styles.windLabel}>AWS</Text>
+                    <Text style={styles.windValue}>{windData.aws.toFixed(1)}</Text>
+                    <Text style={styles.windUnit}>knots</Text>
+                  </View>
+                  <View style={styles.windDataBox}>
+                    <Text style={styles.windLabel}>AWA</Text>
+                    <Text style={styles.windValue}>{windData.awa.toFixed(1)}</Text>
+                    <Text style={styles.windUnit}>degrees</Text>
+                  </View>
+                </View>
+                {windData.tws && windData.twa && (
+                  <View style={styles.windDataRow}>
+                    <View style={styles.windDataBox}>
+                      <Text style={styles.windLabel}>TWS</Text>
+                      <Text style={styles.windValue}>{windData.tws.toFixed(1)}</Text>
+                      <Text style={styles.windUnit}>knots</Text>
+                    </View>
+                    <View style={styles.windDataBox}>
+                      <Text style={styles.windLabel}>TWA</Text>
+                      <Text style={styles.windValue}>{windData.twa.toFixed(1)}</Text>
+                      <Text style={styles.windUnit}>degrees</Text>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
-            <Button title="Disconnect" onPress={disconnectWindSensor} color="#FF9800" />
+            <TouchableOpacity
+              style={styles.warningButton}
+              onPress={disconnectWindSensor}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.warningButtonText}>Disconnect</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
 
       {/* API Status */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Backend</Text>
-        <Text style={styles.info}>{API_URL}</Text>
+      <View style={[styles.section, { marginBottom: 40 }]}>
+        <Text style={styles.sectionTitle}>🔗 Backend</Text>
+        <View style={styles.backendCard}>
+          <Text style={styles.backendLabel}>API Endpoint</Text>
+          <Text style={styles.backendUrl}>{API_URL}</Text>
+          <View style={styles.statusIndicator}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusLabel}>Connected</Text>
+          </View>
+        </View>
       </View>
     </ScrollView>
   );
@@ -704,59 +830,355 @@ export default function TrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1e40af', // Modern blue background
-    padding: 20,
+    backgroundColor: '#0f172a', // Dark ocean blue
   },
   header: {
-    marginTop: 40,
-    marginBottom: 20,
-    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    backgroundColor: '#1e40af',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 12,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#fff', // White title on blue background
-    letterSpacing: -0.5,
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -1,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#e0e7ff',
+    fontWeight: '500',
   },
   section: {
     backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 20,
     padding: 20,
-    borderRadius: 16, // More rounded
-    marginBottom: 16,
+    borderRadius: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1e293b',
+    letterSpacing: -0.5,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+    marginRight: 6,
+  },
+  statusText: {
+    color: '#dc2626',
+    fontSize: 12,
     fontWeight: '700',
+  },
+  primaryButton: {
+    backgroundColor: '#10b981',
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  dangerButton: {
+    backgroundColor: '#ef4444',
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginTop: 12,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  dangerButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  secondaryButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
     marginBottom: 12,
-    color: '#1e293b', // Darker, more modern color
   },
-  info: {
-    fontSize: 14,
-    color: '#64748b', // Modern gray
-    marginBottom: 6,
-    lineHeight: 20,
+  secondaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
-  deviceItem: {
-    padding: 14,
-    backgroundColor: '#dbeafe', // Light blue
+  warningButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  warningButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  sessionInfoCard: {
+    backgroundColor: '#f1f5f9',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  sessionLabel: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  sessionValue: {
+    fontSize: 24,
+    color: '#1e293b',
+    fontWeight: '900',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    padding: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#3b82f6',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  sourceIndicator: {
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  phoneGPS: {
+    backgroundColor: '#dbeafe',
+  },
+  externalGPS: {
+    backgroundColor: '#d1fae5',
+  },
+  sourceText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  phoneGPSText: {
+    color: '#1e40af',
+  },
+  externalGPSText: {
+    color: '#059669',
+  },
+  deviceCard: {
+    backgroundColor: '#f1f5f9',
+    padding: 16,
     borderRadius: 12,
     marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#93c5fd',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
   },
   deviceName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e40af', // Match main blue
+    color: '#1e293b',
+    marginBottom: 4,
   },
   deviceId: {
     fontSize: 12,
+    color: '#94a3b8',
+  },
+  connectedCard: {
+    backgroundColor: '#d1fae5',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  connectedText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#059669',
+    marginBottom: 4,
+  },
+  satelliteText: {
+    fontSize: 13,
+    color: '#047857',
+  },
+  gpsDataCard: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: '#e2e8f0',
+  },
+  dataGrid: {
+    gap: 10,
+  },
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dataLabel: {
+    fontSize: 14,
     color: '#64748b',
+    fontWeight: '600',
+  },
+  dataValue: {
+    fontSize: 16,
+    color: '#1e293b',
+    fontWeight: '800',
+  },
+  waitingText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  warningText: {
+    fontSize: 14,
+    color: '#f59e0b',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  hintText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
     marginTop: 4,
+  },
+  warningCard: {
+    backgroundColor: '#fef3c7',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fde047',
+  },
+  windDataCard: {
+    marginTop: 16,
+    gap: 12,
+  },
+  windDataRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  windDataBox: {
+    flex: 1,
+    backgroundColor: '#f0f9ff',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#bae6fd',
+  },
+  windLabel: {
+    fontSize: 12,
+    color: '#0369a1',
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  windValue: {
+    fontSize: 26,
+    color: '#0c4a6e',
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  windUnit: {
+    fontSize: 11,
+    color: '#075985',
+    fontWeight: '500',
+  },
+  backendCard: {
+    backgroundColor: '#f8fafc',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  backendLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  backendUrl: {
+    fontSize: 13,
+    color: '#475569',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 12,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+    marginRight: 8,
+  },
+  statusLabel: {
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '700',
   },
 });
