@@ -48,6 +48,12 @@ export default function TrackingScreen() {
 
   const [stats, setStats] = useState({ pointsSent: 0, batchesSent: 0 });
 
+  // GPS diagnostics
+  const [permissionStatus, setPermissionStatus] = useState<string>('unknown');
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'acquiring' | 'locked' | 'error'>('idle');
+  const [gpsError, setGpsError] = useState<string>('');
+  const [testingGPS, setTestingGPS] = useState(false);
+
   const sessionIdRef = useRef<number | null>(null);
   const telemetryBufferRef = useRef<TrackPoint[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -77,16 +83,36 @@ export default function TrackingScreen() {
 
   const requestPermissions = async () => {
     try {
+      console.log('[GPS] Requesting location permissions...');
+
       // Location permissions
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+      console.log('[GPS] Foreground permission status:', locationStatus);
+
       if (locationStatus !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required');
+        setPermissionStatus('denied');
+        Alert.alert(
+          'Location Permission Required',
+          'RacePilot needs location access to track your sailing sessions. Please enable location permissions in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ]
+        );
         return;
       }
 
       const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+      console.log('[GPS] Background permission status:', backgroundStatus);
+
       if (backgroundStatus !== 'granted') {
-        Alert.alert('Permission Denied', 'Background location permission is required');
+        setPermissionStatus('foreground-only');
+        Alert.alert(
+          'Background Location Recommended',
+          'For best results, allow location access "All the time" in settings. This lets RacePilot track your session even when the app is in the background.'
+        );
+      } else {
+        setPermissionStatus('granted');
       }
 
       // Bluetooth permissions for Android 12+
@@ -98,11 +124,87 @@ export default function TrackingScreen() {
         ]);
 
         if (Object.values(granted).some(v => v !== 'granted')) {
-          Alert.alert('Permission Denied', 'Bluetooth permissions are required');
+          console.log('[GPS] Some Bluetooth permissions denied');
         }
       }
     } catch (error) {
-      console.error('Permission error:', error);
+      console.error('[GPS] Permission error:', error);
+      setPermissionStatus('error');
+      setGpsError(`Permission error: ${error}`);
+    }
+  };
+
+  // Test GPS without starting a session
+  const testGPS = async () => {
+    setTestingGPS(true);
+    setGpsStatus('acquiring');
+    setGpsError('');
+    console.log('[GPS] Testing GPS signal...');
+
+    try {
+      // Check if we have permission
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setGpsStatus('error');
+        setGpsError('Location permission not granted');
+        Alert.alert(
+          'Permission Required',
+          'Please grant location permission first',
+          [
+            { text: 'Grant Permission', onPress: requestPermissions }
+          ]
+        );
+        setTestingGPS(false);
+        return;
+      }
+
+      console.log('[GPS] Getting current position...');
+
+      // Try to get current location with timeout
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 10000, // 10 second timeout
+      });
+
+      console.log('[GPS] Got location:', {
+        lat: location.coords.latitude,
+        lon: location.coords.longitude,
+        accuracy: location.coords.accuracy
+      });
+
+      setLocation(location);
+      setGpsStatus('locked');
+
+      Alert.alert(
+        'GPS Test Successful! ✓',
+        `Location acquired:\n\n` +
+        `Latitude: ${location.coords.latitude.toFixed(6)}°\n` +
+        `Longitude: ${location.coords.longitude.toFixed(6)}°\n` +
+        `Accuracy: ${location.coords.accuracy?.toFixed(1)}m\n\n` +
+        `GPS is working correctly!`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('[GPS] Test failed:', error);
+      setGpsStatus('error');
+
+      let errorMessage = 'Failed to acquire GPS signal.\n\n';
+      if (error.message?.includes('timeout')) {
+        errorMessage += '⏱️ GPS timeout - Try these steps:\n\n' +
+          '1. Go outside or near a window\n' +
+          '2. Make sure GPS is enabled in device settings\n' +
+          '3. Wait 30-60 seconds for GPS to lock\n' +
+          '4. Restart your device if problem persists';
+      } else if (error.message?.includes('permission')) {
+        errorMessage += '🔒 Permission issue - Please enable location permissions in settings';
+      } else {
+        errorMessage += `Error: ${error.message}`;
+      }
+
+      setGpsError(errorMessage);
+      Alert.alert('GPS Test Failed', errorMessage);
+    } finally {
+      setTestingGPS(false);
     }
   };
 
@@ -149,6 +251,7 @@ export default function TrackingScreen() {
       setStats({ pointsSent: 0, batchesSent: 0 });
 
       // Start location tracking
+      setGpsStatus('acquiring');
       await startLocationTracking();
 
       // Start periodic flush
@@ -192,6 +295,8 @@ export default function TrackingScreen() {
   // Start location tracking
   const startLocationTracking = async () => {
     try {
+      console.log('[GPS] Starting location tracking...');
+
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.BestForNavigation,
         distanceInterval: 1, // Update every 1 meter
@@ -201,9 +306,21 @@ export default function TrackingScreen() {
           notificationBody: 'Tracking your sailing session',
         },
       });
-    } catch (error) {
-      console.error('Location tracking error:', error);
-      Alert.alert('Error', 'Failed to start location tracking');
+
+      console.log('[GPS] Location tracking started successfully');
+    } catch (error: any) {
+      console.error('[GPS] Location tracking error:', error);
+      setGpsStatus('error');
+      setGpsError(error.message || 'Failed to start GPS tracking');
+
+      Alert.alert(
+        'GPS Tracking Error',
+        'Failed to start GPS tracking. Please ensure:\n\n' +
+        '1. Location services are enabled\n' +
+        '2. Location permission is granted\n' +
+        '3. You are outdoors or near a window\n\n' +
+        `Error: ${error.message}`
+      );
     }
   };
 
@@ -263,7 +380,14 @@ export default function TrackingScreen() {
         timeInterval: 1000,
       },
       (newLocation) => {
+        console.log('[GPS] Location update received:', {
+          lat: newLocation.coords.latitude,
+          lon: newLocation.coords.longitude,
+          accuracy: newLocation.coords.accuracy
+        });
+
         setLocation(newLocation);
+        setGpsStatus('locked'); // Mark GPS as locked when we get first position
 
         // Create track point
         const trackPoint: TrackPoint = {
@@ -631,6 +755,51 @@ export default function TrackingScreen() {
       {/* GPS Status */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📍 GPS</Text>
+
+        {/* Permission Status */}
+        {permissionStatus !== 'unknown' && (
+          <View style={[
+            styles.permissionBadge,
+            permissionStatus === 'granted' ? styles.permissionGranted :
+            permissionStatus === 'foreground-only' ? styles.permissionWarning :
+            styles.permissionDenied
+          ]}>
+            <Text style={styles.permissionText}>
+              {permissionStatus === 'granted' ? '✓ Location Permission: Full Access' :
+               permissionStatus === 'foreground-only' ? '⚠️ Location Permission: Foreground Only' :
+               permissionStatus === 'denied' ? '✗ Location Permission: Denied' :
+               '? Location Permission: Error'}
+            </Text>
+          </View>
+        )}
+
+        {/* GPS Status Indicator */}
+        {gpsStatus !== 'idle' && (
+          <View style={[
+            styles.gpsStatusBadge,
+            gpsStatus === 'locked' ? styles.gpsLocked :
+            gpsStatus === 'acquiring' ? styles.gpsAcquiring :
+            styles.gpsError
+          ]}>
+            <Text style={styles.gpsStatusText}>
+              {gpsStatus === 'locked' ? '✓ GPS Signal: Locked' :
+               gpsStatus === 'acquiring' ? '🔄 GPS Signal: Acquiring...' :
+               '✗ GPS Signal: Error'}
+            </Text>
+          </View>
+        )}
+
+        {/* GPS Test Button */}
+        <TouchableOpacity
+          style={[styles.secondaryButton, testingGPS && styles.disabledButton]}
+          onPress={testGPS}
+          disabled={testingGPS}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {testingGPS ? '🔄 Testing GPS...' : '🧪 Test GPS Signal'}
+          </Text>
+        </TouchableOpacity>
 
         {/* GPS Source Indicator */}
         <View style={[styles.sourceIndicator, useExternalGPS ? styles.externalGPS : styles.phoneGPS]}>
@@ -1180,5 +1349,51 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#059669',
     fontWeight: '700',
+  },
+  permissionBadge: {
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 2,
+  },
+  permissionGranted: {
+    backgroundColor: '#d1fae5',
+    borderColor: '#10b981',
+  },
+  permissionWarning: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#f59e0b',
+  },
+  permissionDenied: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
+  },
+  permissionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  gpsStatusBadge: {
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 2,
+  },
+  gpsLocked: {
+    backgroundColor: '#d1fae5',
+    borderColor: '#10b981',
+  },
+  gpsAcquiring: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#3b82f6',
+  },
+  gpsError: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
+  },
+  gpsStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });
