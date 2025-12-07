@@ -238,6 +238,13 @@ export default function TrackingScreen() {
 
       console.log('Create session response status:', response.status);
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        console.error('Session creation failed:', errorData);
+        Alert.alert('Error', errorData.detail || `Failed to start session (${response.status})`);
+        return;
+      }
+
       const data = await response.json();
       console.log('Created session:', data);
       console.log('Session ID:', data.id);
@@ -261,9 +268,10 @@ export default function TrackingScreen() {
 
       Alert.alert('Success', `Session ${data.id} started!\n\nCheck dashboard for this session ID.`);
       console.log('=== SESSION STARTED ===');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Start session error:', error);
-      Alert.alert('Error', 'Failed to start session');
+      const errorMessage = error?.message || 'Failed to start session. Check your connection.';
+      Alert.alert('Error', errorMessage);
     }
   };
 
