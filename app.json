@@ -80,6 +80,7 @@
         }
       ]
     ],
+    "scheme": "racepilot",
     "extra": {
       "eas": {
         "projectId": "ff6d5f8a-3a84-4448-a19d-79daecfde1fd"

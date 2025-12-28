@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from './AuthContext';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -28,10 +33,105 @@ export default function LoginScreen() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showClubCodeModal, setShowClubCodeModal] = useState(false);
+  const [googleCredential, setGoogleCredential] = useState('');
+  const [googleClubCode, setGoogleClubCode] = useState('');
 
   const { login, register } = useAuth();
 
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+  // Google OAuth configuration
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: '48572885130-9pofupt5pdodpr9kam3mt9f13eqvo53v.apps.googleusercontent.com',
+    // For Android: Add your Android client ID from Google Cloud Console
+    // androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleSignIn(id_token);
+    }
+  }, [response]);
+
+  const handleGoogleSignIn = async (credential: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/google-signin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ credential }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 400 && data.detail?.includes('Club code required')) {
+        // New user - need club code
+        setGoogleCredential(credential);
+        setShowClubCodeModal(true);
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Google sign-in failed');
+      }
+
+      // Store token and user data
+      await AsyncStorage.setItem('auth_token', data.access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+
+      // Reload app to show main screens
+      window.location.reload?.();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeGoogleRegistration = async () => {
+    if (!googleClubCode.trim()) {
+      Alert.alert('Error', 'Club code is required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/google-signin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          credential: googleCredential,
+          club_code: googleClubCode,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Google registration failed');
+      }
+
+      // Store token and user data
+      await AsyncStorage.setItem('auth_token', data.access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+
+      setShowClubCodeModal(false);
+      // Reload app to show main screens
+      window.location.reload?.();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Google registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleForgotPassword = async () => {
     if (!resetEmail) {
@@ -176,21 +276,33 @@ export default function LoginScreen() {
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Password</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      focusedInput === 'password' && styles.inputFocused,
-                    ]}
-                    value={password}
-                    onChangeText={setPassword}
-                    onFocus={() => setFocusedInput('password')}
-                    onBlur={() => setFocusedInput(null)}
-                    placeholder="At least 8 characters"
-                    placeholderTextColor="#94a3b8"
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        styles.passwordInput,
+                        focusedInput === 'password' && styles.inputFocused,
+                      ]}
+                      value={password}
+                      onChangeText={setPassword}
+                      onFocus={() => setFocusedInput('password')}
+                      onBlur={() => setFocusedInput(null)}
+                      placeholder="At least 8 characters"
+                      placeholderTextColor="#94a3b8"
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.passwordToggle}
+                      onPress={() => setShowPassword(!showPassword)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.passwordToggleText}>
+                        {showPassword ? '👁️' : '👁️‍🗨️'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   {isLogin && (
                     <TouchableOpacity
                       onPress={() => setShowForgotPassword(true)}
@@ -276,6 +388,25 @@ export default function LoginScreen() {
                     </Text>
                   </Text>
                 </TouchableOpacity>
+
+                {/* Divider */}
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* Google Sign-in Button */}
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={() => promptAsync()}
+                  disabled={!request || loading}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.googleButtonText}>
+                    {isLogin ? '🔐 Sign in with Google' : '🔐 Sign up with Google'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -340,6 +471,67 @@ export default function LoginScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.modalButtonTextPrimary}>Send Reset Link</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Club Code Modal for Google Sign-up */}
+      <Modal
+        visible={showClubCodeModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowClubCodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Welcome to RacePilot!</Text>
+            <Text style={styles.modalSubtitle}>
+              Please enter your club code to complete registration.
+            </Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Club Code</Text>
+              <TextInput
+                style={styles.input}
+                value={googleClubCode}
+                onChangeText={(text) => setGoogleClubCode(text.toUpperCase())}
+                placeholder="e.g., BRYC"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                autoFocus={true}
+              />
+              <Text style={styles.hint}>
+                Ask your club admin for the club code
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setShowClubCodeModal(false);
+                  setGoogleClubCode('');
+                  setGoogleCredential('');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary, loading && styles.buttonDisabled]}
+                onPress={completeGoogleRegistration}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalButtonTextPrimary}>Complete Registration</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -424,6 +616,22 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     fontWeight: '500',
   },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    padding: 4,
+    zIndex: 1,
+  },
+  passwordToggleText: {
+    fontSize: 20,
+  },
   inputFocused: {
     borderColor: '#3b82f6',
     backgroundColor: '#fff',
@@ -471,6 +679,35 @@ const styles = StyleSheet.create({
   },
   switchTextBold: {
     color: '#3b82f6',
+    fontWeight: '700',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0',
+  },
+  dividerText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  googleButtonText: {
+    color: '#1e293b',
+    fontSize: 17,
     fontWeight: '700',
   },
   footer: {

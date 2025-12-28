@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Text, View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from './AuthContext';
 import TrackingScreen from './TrackingScreen';
 import CourseSetupScreen from './CourseSetupScreen';
 import ProfileScreen from './ProfileScreen';
+import FeedbackScreen from './FeedbackScreen';
 import LoginScreen from './LoginScreen';
+import OnboardingWalkthrough from './OnboardingWalkthrough';
 
 const Tab = createBottomTabNavigator();
 
@@ -23,8 +26,21 @@ export default function App() {
 
 function AppContent() {
   const { user, isLoading } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      const completed = await AsyncStorage.getItem('onboarding_complete');
+      if (!completed && user) {
+        setShowOnboarding(true);
+      }
+      setOnboardingChecked(true);
+    };
+    checkOnboarding();
+  }, [user]);
+
+  if (isLoading || !onboardingChecked) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#2196F3" />
@@ -37,9 +53,15 @@ function AppContent() {
   }
 
   return (
-    <NavigationContainer>
-      <TabNavigatorWithInsets />
-    </NavigationContainer>
+    <>
+      <NavigationContainer>
+        <TabNavigatorWithInsets />
+      </NavigationContainer>
+      <OnboardingWalkthrough
+        visible={showOnboarding}
+        onComplete={() => setShowOnboarding(false)}
+      />
+    </>
   );
 }
 
@@ -83,6 +105,16 @@ function TabNavigatorWithInsets() {
           tabBarLabel: 'Course Setup',
           tabBarIcon: ({ color, size }) => (
             <TabIcon icon="🎯" color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Feedback"
+        component={FeedbackScreen}
+        options={{
+          tabBarLabel: 'Feedback',
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon icon="💬" color={color} />
           ),
         }}
       />
