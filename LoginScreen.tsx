@@ -45,8 +45,7 @@ export default function LoginScreen() {
   // Google OAuth configuration
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: '48572885130-9pofupt5pdodpr9kam3mt9f13eqvo53v.apps.googleusercontent.com',
-    // For Android: Add your Android client ID from Google Cloud Console
-    // androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+    androidClientId: '48572885130-mrg7htqj26pk1dor001pe8499t4g11d.apps.googleusercontent.com',
   });
 
   useEffect(() => {
